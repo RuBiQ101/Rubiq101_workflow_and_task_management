@@ -5,6 +5,7 @@ class RegisterDto {
   email!: string;
   password!: string;
   name?: string;
+  inviteToken?: string;  // Optional invite token for auto-join
 }
 
 class LoginDto {
@@ -18,7 +19,7 @@ export class AuthController {
 
   @Post('register')
   register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto.email, dto.password, dto.name);
+    return this.auth.register(dto.email, dto.password, dto.name, dto.inviteToken);
   }
 
   @Post('login')

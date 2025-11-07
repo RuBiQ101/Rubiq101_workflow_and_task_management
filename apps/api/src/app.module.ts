@@ -9,6 +9,8 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { ActivityModule } from './activity/activity.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { CommentsModule } from './comments/comments.module';
+import { BillingModule } from './billing/billing.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { CommentsModule } from './comments/comments.module';
     ActivityModule,
     AttachmentsModule,
     CommentsModule,
+    BillingModule,
+    AdminModule,
   ],
   providers: [PrismaService],
 })

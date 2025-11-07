@@ -12,6 +12,7 @@ model User {
   email               String                @unique
   passwordHash        String
   name                String?
+  username            String?
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   organizations       OrganizationMember[]
@@ -21,28 +22,35 @@ model User {
   comments            Comment[]
   attachments         Attachment[]
   notifications       Notification[]
+  activities          Activity[]
 }
 
 model Organization {
-  id          String                @id @default(cuid())
-  name        String
-  description String?
-  members     OrganizationMember[]
-  workspaces  Workspace[]
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  id            String                @id @default(cuid())
+  name          String
+  description   String?
+  ownerId       String?               // Made optional for migration
+  members       OrganizationMember[]
+  workspaces    Workspace[]
+  subscription  Subscription?
+  invites       InviteToken[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 }
 
 model OrganizationMember {
   id             String       @id @default(cuid())
   userId         String
   organizationId String
-  role           String       @default("member")
-  user           User         @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  roleKey        String       @default("member") // 'owner', 'admin', 'member', 'guest'
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
 
   @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
 }
 
 model Workspace {
@@ -210,10 +218,12 @@ model Activity {
   workspaceId    String?
   projectId      String?
   taskId         String?
-  type           String
+  type           String   // e.g., "task.updated", "comment.created", "role.changed", "member.invited"
   payload        Json
   createdAt      DateTime @default(now())
+  actor          User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId, createdAt])
   @@index([workspaceId, createdAt])
   @@index([projectId, createdAt])
   @@index([taskId, createdAt])
@@ -230,4 +240,47 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId, read, createdAt])
+}
+
+model RoleDefinition {
+  id          String   @id @default(cuid())
+  key         String   @unique // 'owner', 'admin', 'member', 'guest'
+  name        String
+  description String?
+  permissions Json     // Array of permission strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Subscription {
+  id                   String       @id @default(cuid())
+  organizationId       String       @unique
+  stripeCustomerId     String?      @unique
+  stripeSubscriptionId String?      @unique
+  planKey              String       @default("free") // 'free', 'pro', 'enterprise'
+  status               String       @default("active") // 'active', 'trialing', 'past_due', 'canceled', 'incomplete'
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean      @default(false)
+  trialEndsAt          DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+}
+
+model InviteToken {
+  id             String       @id @default(cuid())
+  email          String
+  organizationId String
+  roleKey        String       @default("member")
+  token          String       @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([email, organizationId])
 }

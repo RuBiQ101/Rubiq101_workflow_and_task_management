@@ -12,6 +12,9 @@ A full-stack workflow and task management platform with real-time collaboration 
 - **📊 Activity Feed**: Comprehensive audit trail of all actions
 - **🔔 Notifications**: Real-time push notifications
 - **📱 Kanban Board UI**: Drag-and-drop task management interface
+- **👥 Role-Based Access Control**: Owner, Admin, Member, and Guest roles with granular permissions
+- **💳 Billing Integration**: Stripe subscriptions with webhooks for automatic status sync
+- **📧 Team Invitations**: Secure invite system with token-based member onboarding
 
 ## 🛠 Tech Stack
 
@@ -22,6 +25,7 @@ A full-stack workflow and task management platform with real-time collaboration 
 - **Socket.IO** - Real-time WebSocket communication
 - **JWT** - Secure authentication
 - **AWS S3** - File storage
+- **Stripe** - Subscription billing
 
 ### Frontend
 - **React 19** - UI library
@@ -38,14 +42,16 @@ workflow-platform/
 ├── apps/
 │   ├── api/                    # NestJS backend
 │   │   ├── src/
-│   │   │   ├── auth/          # Authentication module
+│   │   │   ├── auth/          # Authentication & RBAC
 │   │   │   ├── organization/   # Organization management
 │   │   │   ├── projects/       # Project management
 │   │   │   ├── tasks/          # Task management
 │   │   │   ├── realtime/       # WebSocket gateway
 │   │   │   ├── activity/       # Activity logging
 │   │   │   ├── comments/       # Comment system
-│   │   │   └── attachments/    # File uploads
+│   │   │   ├── attachments/    # File uploads
+│   │   │   ├── billing/        # Stripe integration
+│   │   │   └── admin/          # Admin operations
 │   │   └── prisma/
 │   │       └── schema.prisma   # Database schema
 │   └── web/                    # React frontend
@@ -88,11 +94,18 @@ workflow-platform/
    JWT_SECRET="your-secret-key-change-in-production"
    PORT=3001
    
+   # Stripe (for billing)
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   
    # Optional: For file uploads
    AWS_REGION=us-east-1
    AWS_S3_BUCKET=your-bucket-name
    AWS_ACCESS_KEY_ID=your-access-key
    AWS_SECRET_ACCESS_KEY=your-secret-key
+   
+   # Frontend URL for invites
+   FRONTEND_URL=http://localhost:5173
    ```
    
    Create `apps/web/.env`:
@@ -217,9 +230,10 @@ pnpm run build
 
 ### Backend (NestJS)
 - Deploy to platforms like Railway, Render, or AWS
-- Set environment variables
+- Set environment variables (including Stripe keys)
 - Run migrations: `pnpm exec prisma migrate deploy`
 - For horizontal scaling, add Redis adapter (see [REALTIME_SETUP.md](REALTIME_SETUP.md))
+- Configure Stripe webhook endpoint in production
 
 ### Frontend (React)
 - Deploy to Vercel, Netlify, or Cloudflare Pages
@@ -228,6 +242,12 @@ pnpm run build
 ### Database
 - Use managed PostgreSQL (e.g., AWS RDS, Supabase, Neon)
 - Regular backups recommended
+
+## 📚 Documentation
+
+- **[Setup Guide](SETUP_GUIDE.md)** - Detailed installation and configuration
+- **[Real-time Features](REALTIME_SETUP.md)** - WebSocket setup and scaling
+- **[Step 8: Access Control & Billing](STEP8_GUIDE.md)** - RBAC, Stripe integration, admin APIs
 
 ## 🤝 Contributing
 

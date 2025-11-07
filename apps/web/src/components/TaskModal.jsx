@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/apiClient';
+import { uploadFileToS3PresignedWithProgress } from '../api/upload.presigned.progress';
+import { openAttachmentInNewTab } from '../api/attachment';
 
 export default function TaskModal({ task: initialTask, onClose, onSaved }) {
   const [task, setTask] = useState(initialTask);
   const [saving, setSaving] = useState(false);
   const [newSub, setNewSub] = useState('');
+  const [uploading, setUploading] = useState([]); // list of {id, name, progress}
+  const [error, setError] = useState(null);
 
   useEffect(() => setTask(initialTask), [initialTask]);
 
@@ -50,6 +54,59 @@ export default function TaskModal({ task: initialTask, onClose, onSaved }) {
     } catch (e) {
       console.error(e);
       alert('Failed');
+    }
+  }
+
+  // --- Upload handlers ---
+  const onFiles = useCallback(async (files) => {
+    setError(null);
+    for (const f of files) {
+      const tempId = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+      setUploading(u => [...u, { id: tempId, name: f.name, progress: 0 }]);
+      try {
+        const attachment = await uploadFileToS3PresignedWithProgress({
+          taskId: task.id,
+          file: f,
+          onProgress: (p) => {
+            setUploading(prev => prev.map(it => it.id === tempId ? { ...it, progress: p } : it));
+          }
+        });
+        // remove uploading entry
+        setUploading(prev => prev.filter(it => it.id !== tempId));
+        // append to task.attachments
+        setTask(prev => ({ ...prev, attachments: [...(prev.attachments || []), attachment] }));
+      } catch (err) {
+        console.error('Upload failed', err);
+        setError(err.message || 'Upload failed');
+        setUploading(prev => prev.filter(it => it.id !== tempId));
+      }
+    }
+  }, [task.id]);
+
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) onFiles(files);
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function onFileInputChange(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length) onFiles(files);
+    e.target.value = null;
+  }
+
+  async function downloadAttachment(att) {
+    try {
+      await openAttachmentInNewTab(att.id);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to get download link');
     }
   }
 
@@ -114,6 +171,77 @@ export default function TaskModal({ task: initialTask, onClose, onSaved }) {
                 <button onClick={addSubtask} className="px-3 py-1 bg-indigo-600 text-white rounded">Add</button>
               </div>
             </div>
+          </div>
+
+          {/* Attachments section */}
+          <div>
+            <div className="text-sm font-semibold mb-2">Attachments</div>
+
+            {/* Drag-drop zone */}
+            <div
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition"
+            >
+              <input
+                type="file"
+                id="file-input"
+                multiple
+                onChange={onFileInputChange}
+                className="hidden"
+              />
+              <label htmlFor="file-input" className="cursor-pointer text-gray-600">
+                <span className="text-indigo-600 underline">Choose files</span> or drag them here
+              </label>
+            </div>
+
+            {/* Upload progress */}
+            {uploading.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {uploading.map(u => (
+                  <div key={u.id} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-600">{u.name}</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div
+                          className="bg-indigo-600 h-2 rounded-full transition-all"
+                          style={{ width: `${u.progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500">{u.progress}%</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error message */}
+            {error && (
+              <div className="mt-3 p-2 bg-red-50 text-red-600 rounded text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Attachment list */}
+            {(task.attachments || []).length > 0 && (
+              <div className="mt-3 space-y-2">
+                {task.attachments.map(att => (
+                  <div key={att.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">📎</span>
+                      <span className="text-sm text-gray-700">{att.filename}</span>
+                      <span className="text-xs text-gray-500">({Math.round(att.size / 1024)} KB)</span>
+                    </div>
+                    <button
+                      onClick={() => downloadAttachment(att)}
+                      className="px-3 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition"
+                    >
+                      Download
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-2">
