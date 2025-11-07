@@ -1,0 +1,233 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                  String                @id @default(cuid())
+  email               String                @unique
+  passwordHash        String
+  name                String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  organizations       OrganizationMember[]
+  memberships         Membership[]
+  jobs                Job[]                 @relation("JobOwner")
+  tasksAssigned       Task[]                @relation("TaskAssignee")
+  comments            Comment[]
+  attachments         Attachment[]
+  notifications       Notification[]
+}
+
+model Organization {
+  id          String                @id @default(cuid())
+  name        String
+  description String?
+  members     OrganizationMember[]
+  workspaces  Workspace[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String       @default("member")
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+}
+
+model Workspace {
+  id             String       @id @default(cuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  members        Membership[]
+  workflows      Workflow[]
+  projects       Project[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role      @default(MEMBER)
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([userId, workspaceId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Workflow {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  jobs        Job[]
+  columns     Column[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Column {
+  id         String     @id @default(cuid())
+  workflowId String
+  key        String
+  type       ColumnType
+  name       String
+  order      Int
+  workflow   Workflow   @relation(fields: [workflowId], references: [id])
+
+  @@unique([workflowId, key])
+}
+
+enum ColumnType {
+  STATUS
+  USER
+  DATE
+  TEXT
+  NUMBER
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  workflowId  String
+  title       String
+  description String?
+  ownerId     String?
+  status      String   @default("todo")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workflow    Workflow @relation(fields: [workflowId], references: [id])
+  owner       User?    @relation("JobOwner", fields: [ownerId], references: [id])
+  tasks       Task[]
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  jobId       String
+  title       String
+  description String?
+  assigneeId  String?
+  status      TaskStatus @default(TODO)
+  dueDate     DateTime?
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  job         Job        @relation(fields: [jobId], references: [id])
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  tasks       ProjectTask[]
+  isArchived  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProjectTask {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus     @default(TODO)
+  priority    Int?
+  assigneeId  String?
+  projectId   String
+  project     Project        @relation(fields: [projectId], references: [id])
+  subtasks    Subtask[]
+  comments    Comment[]
+  attachments Attachment[]
+  dueDate     DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Subtask {
+  id        String      @id @default(cuid())
+  title     String
+  isDone    Boolean     @default(false)
+  taskId    String
+  task      ProjectTask @relation(fields: [taskId], references: [id])
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Comment {
+  id        String      @id @default(cuid())
+  authorId  String
+  taskId    String
+  content   String
+  createdAt DateTime    @default(now())
+  author    User        @relation(fields: [authorId], references: [id])
+  task      ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id         String      @id @default(cuid())
+  uploaderId String
+  taskId     String
+  url        String
+  filename   String?
+  mimeType   String?
+  size       Int?
+  createdAt  DateTime    @default(now())
+  uploader   User        @relation(fields: [uploaderId], references: [id])
+  task       ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Activity {
+  id             String   @id @default(cuid())
+  actorId        String?
+  organizationId String?
+  workspaceId    String?
+  projectId      String?
+  taskId         String?
+  type           String
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([taskId, createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  actorId   String?
+  type      String
+  data      Json
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, read, createdAt])
+}

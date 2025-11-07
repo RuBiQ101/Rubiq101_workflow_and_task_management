@@ -1,0 +1,19 @@
+{
+  "name": "workflow-task-management",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:web": "pnpm --filter @workflow-task-management/web dev",
+    "dev:api": "pnpm --filter @workflow-task-management/api start:dev",
+    "dev": "concurrently -n web,api -c magenta,blue \"pnpm dev:web\" \"pnpm dev:api\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "packageManager": "pnpm@10.20.0"
+}
