@@ -67,3 +67,22 @@ axiosInstance.interceptors.response.use(
 // Export both the fetch-based API and axios instance
 export const api = apiClient;
 export default axiosInstance;
+
+// Health check function
+export const checkAPIHealth = async () => {
+  try {
+    console.log('Checking API health at:', `${API_BASE}/health`);
+    const response = await fetch(`${API_BASE}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const isHealthy = response.ok;
+    console.log('API health check result:', isHealthy, 'Status:', response.status);
+    return isHealthy;
+  } catch (error) {
+    console.error('API health check failed:', error.message);
+    return false;
+  }
+};

@@ -26,52 +26,107 @@ export default function LoginPage() {
 
     try {
       const endpoint = isLogin ? '/auth/login' : '/auth/register';
-      console.log('Making request to:', endpoint, 'with data:', { 
-        email: formData.email, 
-        hasPassword: !!formData.password 
-      });
+      console.log('=== AUTHENTICATION ATTEMPT ===');
+      console.log('Making request to:', endpoint);
+      console.log('Email:', formData.email);
+      console.log('Has password:', !!formData.password);
+      console.log('Password length:', formData.password?.length);
       
       const { data } = await api.post(endpoint, formData);
-      console.log('Login response:', data);
+      console.log('✅ Authentication response received:', data);
       
-      // Store token
+      // Store token with multiple fallback checks
       if (!data.accessToken && !data.access_token) {
-        throw new Error('No access token in response');
+        console.error('❌ No access token in response:', data);
+        throw new Error('Server did not return an access token. Response: ' + JSON.stringify(data));
       }
       
       const token = data.accessToken || data.access_token;
+      console.log('Token received (first 30 chars):', token.substring(0, 30) + '...');
+      console.log('Token length:', token.length);
+      
       localStorage.setItem('token', token);
-      console.log('Token stored successfully:', token.substring(0, 20) + '...');
+      console.log('Token stored in localStorage');
       
       // Verify token is present before proceeding
       const storedToken = localStorage.getItem('token');
       if (!storedToken) {
-        throw new Error('Token not stored properly');
+        console.error('❌ Token storage failed - localStorage.setItem did not persist');
+        throw new Error('Token storage failed. Please check browser settings.');
       }
       
-      // Check if user needs onboarding
+      if (storedToken !== token) {
+        console.error('❌ Token mismatch after storage');
+        throw new Error('Token verification failed. Stored token does not match received token.');
+      }
+      
+      console.log('✅ Token verified in localStorage');
+      
+      // Test the token immediately by calling /auth/me
       try {
+        console.log('Testing token with /auth/me endpoint...');
         const { data: userData } = await api.get('/auth/me');
-        console.log('User data fetched:', userData);
+        console.log('✅ Token validation successful. User data:', userData);
         
         // For new registrations or first-time users, redirect to onboarding
         if (!isLogin || (isFirstRun() && !userData.onboardingComplete)) {
+          console.log('Redirecting to onboarding...');
           navigate('/onboarding');
         } else {
+          console.log('Redirecting to dashboard...');
           navigate('/dashboard');
         }
       } catch (meError) {
-        console.warn('Could not fetch user data, redirecting to dashboard:', meError);
-        // If we can't fetch user data, just go to dashboard
-        navigate('/dashboard');
+        console.error('⚠️ Token validation failed:', meError);
+        console.error('Error status:', meError.response?.status);
+        console.error('Error data:', meError.response?.data);
+        
+        if (meError.response?.status === 401) {
+          setError('Login successful but token validation failed. The server rejected the token. Please contact support.');
+        } else {
+          console.warn('Could not fetch user data, but proceeding to dashboard');
+          // Token is valid (we got it from login), so proceed anyway
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
+      console.error('=== AUTHENTICATION ERROR ===');
       console.error('Full error object:', err);
+      console.error('Error message:', err.message);
       console.error('Error response:', err.response);
-      console.error('Error response data:', err.response?.data);
-      setError(err.response?.data?.message || err.message || 'Authentication failed');
+      console.error('Response status:', err.response?.status);
+      console.error('Response data:', err.response?.data);
+      console.error('Response headers:', err.response?.headers);
+      
+      // Build detailed error message
+      let errorMessage = 'Authentication failed';
+      
+      if (err.response) {
+        // Server responded with error
+        if (err.response.status === 401) {
+          errorMessage = 'Invalid email or password';
+        } else if (err.response.status === 500) {
+          errorMessage = 'Server error. Please check backend logs and try again.';
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data?.error) {
+          errorMessage = err.response.data.error;
+        } else {
+          errorMessage = `Server error (${err.response.status})`;
+        }
+      } else if (err.request) {
+        // Request was made but no response
+        errorMessage = 'Cannot connect to server. Please check if the backend is running.';
+      } else {
+        // Something else went wrong
+        errorMessage = err.message;
+      }
+      
+      console.error('Final error message:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
+      console.log('=== AUTHENTICATION ATTEMPT COMPLETE ===');
     }
   };
 

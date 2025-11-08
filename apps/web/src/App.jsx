@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -7,7 +7,9 @@ import WorkspacePage from './pages/WorkspacePage';
 import InviteAcceptPage from './pages/InviteAcceptPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import OnboardingPage from './pages/OnboardingPage';
+import DebugPage from './pages/DebugPage';
 import AppLayout from './components/layout/AppLayout';
+import { checkAPIHealth } from './api/client';
 
 // Simple demo app: pass workspace id via env or change here
 const DEMO_WORKSPACE = import.meta.env.VITE_WORKSPACE_ID || 'replace-workspace-id';
@@ -32,20 +34,48 @@ const PrivateRoute = ({ children }) => {
 };
 
 export default function App() {
-  // Debug logging for app initialization
-  console.log('App initialized with:', {
-    hasToken: !!localStorage.getItem('token'),
-    apiBase: import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:3000',
-    demoWorkspace: DEMO_WORKSPACE,
-    currentPath: window.location.pathname
-  });
+  const [apiHealthy, setApiHealthy] = useState(null);
+
+  useEffect(() => {
+    // Comprehensive debug logging on app start
+    console.log('=== APP START DEBUG INFO ===');
+    console.log('Token exists:', !!localStorage.getItem('token'));
+    console.log('Token value:', localStorage.getItem('token'));
+    console.log('Token length:', localStorage.getItem('token')?.length);
+    console.log('API Base URL:', import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:3000');
+    console.log('Demo Workspace:', DEMO_WORKSPACE);
+    console.log('Current path:', window.location.pathname);
+    console.log('Environment mode:', import.meta.env.MODE);
+    console.log('All localStorage keys:', Object.keys(localStorage));
+    console.log('============================');
+
+    // Check API health
+    checkAPIHealth().then(isHealthy => {
+      console.log('API Health Check:', isHealthy ? '✅ Healthy' : '❌ Unhealthy');
+      setApiHealthy(isHealthy);
+      if (!isHealthy) {
+        console.error('⚠️ Backend server is not responding! Check if it\'s running on port 3000.');
+      }
+    });
+  }, []);
 
   return (
     <Router>
+      {/* API Health Warning Banner */}
+      {apiHealthy === false && (
+        <div className="bg-red-600 text-white px-4 py-3 text-center font-medium">
+          ⚠️ Backend server is not responding. Please check if it's running on port 3000. 
+          <a href="/debug" className="ml-2 underline font-bold">Open Debug Console</a>
+        </div>
+      )}
+      
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invite/accept" element={<InviteAcceptPage />} />
+        
+        {/* Debug route - public for easy access */}
+        <Route path="/debug" element={<DebugPage />} />
         
         {/* Onboarding route (protected but no layout) */}
         <Route
