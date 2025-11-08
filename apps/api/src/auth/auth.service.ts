@@ -110,7 +110,7 @@ export class AuthService {
         type: 'member.joined',
         actorId: userId,
         organizationId: invite.organizationId,
-        metadata: {
+        payload: {
           roleKey: invite.roleKey,
           inviteId: invite.id,
           via: 'registration',

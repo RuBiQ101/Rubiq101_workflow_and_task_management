@@ -13,7 +13,7 @@ export class OrganizationService {
         members: {
           create: {
             userId,
-            role: 'owner',
+            roleKey: 'owner',
           },
         },
       },

@@ -73,7 +73,7 @@ export class AttachmentsPresignGetController {
 
     // derive key from stored URL if needed:
     // e.g. https://<BUCKET>.s3.<REGION>.amazonaws.com/<key>
-    let key = null;
+    let key: string | null = null;
     try {
       const url = new URL(attachment.url);
       // url.pathname begins with '/'

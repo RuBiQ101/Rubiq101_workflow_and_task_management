@@ -27,6 +27,24 @@ export class ActivityService {
     });
   }
 
+  async getOrganizationActivities(
+    organizationId: string,
+    page = 1,
+    limit = 50,
+  ) {
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      this.prisma.activity.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.activity.count({ where: { organizationId } }),
+    ]);
+    return { items, total, page, limit };
+  }
+
   async getWorkspaceActivities(
     workspaceId: string,
     page = 1,

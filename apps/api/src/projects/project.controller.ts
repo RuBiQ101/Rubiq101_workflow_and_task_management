@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -40,6 +41,11 @@ export class ProjectController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.projectService.get(id);
+  }
+
+  @Get(':id/board')
+  getBoard(@Param('id') id: string, @Request() req: any) {
+    return this.projectService.getBoard(id, req.user?.id);
   }
 
   @Put(':id')

@@ -67,4 +67,28 @@ export class TaskController {
   ) {
     return this.taskService.toggleSubtask(subtaskId, isDone);
   }
+
+  @Post('move')
+  moveTask(
+    @Param('projectId') projectId: string,
+    @Body() body: { taskId: string; toColumn: string; toIndex: number },
+    @Request() req: any,
+  ) {
+    return this.taskService.moveTask(
+      projectId,
+      body.taskId,
+      body.toColumn,
+      body.toIndex,
+      req.user?.id,
+    );
+  }
+
+  @Post('reorder')
+  reorder(
+    @Param('projectId') projectId: string,
+    @Body() body: { columns: Record<string, string[]> },
+    @Request() req: any,
+  ) {
+    return this.taskService.reorder(projectId, body.columns, req.user?.id);
+  }
 }

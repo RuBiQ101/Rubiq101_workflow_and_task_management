@@ -8,9 +8,9 @@ import {
   Req,
   UseGuards,
   Headers,
-  RawBodyRequest,
   BadRequestException,
 } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -79,14 +79,14 @@ export class WebhookController {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-      apiVersion: '2024-11-20.acacia',
+      // apiVersion will use the default from the package
     });
 
     let event: Stripe.Event;
 
     try {
       // Get raw body (needs to be configured in main.ts)
-      const payload = req.rawBody || req.body;
+      const payload: any = req.rawBody || req.body;
       event = stripe.webhooks.constructEvent(
         payload,
         signature,

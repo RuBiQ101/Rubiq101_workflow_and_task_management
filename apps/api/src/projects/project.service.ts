@@ -50,4 +50,27 @@ export class ProjectService {
   async delete(projectId: string) {
     return this.prisma.project.delete({ where: { id: projectId } });
   }
+
+  async getBoard(projectId: string, userId?: string) {
+    // Fetch all tasks for the project, ordered by position
+    const tasks = await this.prisma.projectTask.findMany({
+      where: { projectId },
+      orderBy: { position: 'asc' },
+      include: {
+        subtasks: true,
+        attachments: true,
+      },
+    });
+
+    // Group tasks by columnKey
+    const columns: Record<string, any[]> = {};
+    for (const task of tasks) {
+      if (!columns[task.columnKey]) {
+        columns[task.columnKey] = [];
+      }
+      columns[task.columnKey].push(task);
+    }
+
+    return { columns };
+  }
 }

@@ -23,6 +23,7 @@ model User {
   attachments         Attachment[]
   notifications       Notification[]
   activities          Activity[]
+  reactions           Reaction[]
 }
 
 model Organization {
@@ -166,6 +167,8 @@ model ProjectTask {
   title       String
   description String?
   status      TaskStatus     @default(TODO)
+  columnKey   String         @default("todo") // for drag-drop: "todo", "in_progress", "done"
+  position    Int            @default(0)      // ordering within column (lower = top)
   priority    Int?
   assigneeId  String?
   projectId   String
@@ -193,9 +196,30 @@ model Comment {
   authorId  String
   taskId    String
   content   String
+  parentId  String?
   createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
   author    User        @relation(fields: [authorId], references: [id])
   task      ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+
+  @@index([taskId, createdAt])
+  @@index([parentId])
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  type      String   // e.g., 'like', 'thumbs_up', 'laugh', 'heart'
+  createdAt DateTime @default(now())
+
+  @@unique([userId, commentId, type])
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([commentId])
+  @@index([userId])
 }
 
 model Attachment {
@@ -283,4 +307,34 @@ model InviteToken {
 
   @@index([token])
   @@index([email, organizationId])
+}
+
+model PageToken {
+  id             String            @id @default(cuid())
+  orgId          String
+  token          String            @unique
+  description    String?
+  allowedOrigins String[]          @default([]) // restrict which origins can exchange this token
+  createdBy      String?
+  createdAt      DateTime          @default(now())
+  revoked        Boolean           @default(false)
+  revokedAt      DateTime?
+  usageLogs      PageTokenUsage[]
+
+  @@index([orgId])
+  @@index([token])
+}
+
+model PageTokenUsage {
+  id          String    @id @default(cuid())
+  pageTokenId String
+  origin      String
+  ip          String?   // optional: requestor IP
+  userAgent   String?   // optional: UA
+  createdAt   DateTime  @default(now())
+
+  pageToken   PageToken @relation(fields: [pageTokenId], references: [id], onDelete: Cascade)
+
+  @@index([pageTokenId])
+  @@index([origin])
 }

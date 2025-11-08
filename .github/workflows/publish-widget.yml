@@ -1,0 +1,127 @@
+name: Build & Publish Widget
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/web/src/widget/**'
+      - 'apps/web/vite.widget.config.js'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./apps/web
+
+      - name: Build widget
+        run: npm run build:widget
+        working-directory: ./apps/web
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload widget to S3
+        env:
+          BUCKET: ${{ secrets.WIDGET_S3_BUCKET }}
+        run: |
+          # Ensure dist file exists
+          ls -la apps/web/dist/widget
+          
+          # Upload main widget bundle
+          aws s3 cp apps/web/dist/widget/workflo-widget-app.iife.js \
+            s3://$BUCKET/workflo-widget-app.iife.js \
+            --acl public-read \
+            --cache-control max-age=31536000 \
+            --content-type application/javascript
+          
+          # Upload versioned copy (using git SHA)
+          aws s3 cp apps/web/dist/widget/workflo-widget-app.iife.js \
+            s3://$BUCKET/workflo-widget-app.v${GITHUB_SHA::8}.iife.js \
+            --acl public-read \
+            --cache-control max-age=31536000 \
+            --content-type application/javascript
+          
+          # Also upload the loader script if it exists in public/
+          if [ -f apps/web/public/workflo-widget-v1.js ]; then
+            aws s3 cp apps/web/public/workflo-widget-v1.js \
+              s3://$BUCKET/workflo-widget-v1.js \
+              --acl public-read \
+              --cache-control max-age=31536000 \
+              --content-type application/javascript
+          fi
+
+      - name: CloudFront invalidation
+        if: ${{ vars.WIDGET_CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        env:
+          DISTRIBUTION_ID: ${{ vars.WIDGET_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          echo "Creating CloudFront invalidation..."
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/workflo-widget-app.iife.js" "/workflo-widget-v1.js"
+
+      - name: Smoke test widget session endpoint
+        env:
+          API_BASE: ${{ secrets.WIDGET_API_BASE }}
+          PAGE_TOKEN: ${{ secrets.WIDGET_SMOKE_PAGE_TOKEN }}
+        run: |
+          echo "🧪 Running smoke test on widget session endpoint..."
+          set -e
+          
+          # Call the widget session endpoint
+          resp=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$API_BASE/widget/session" \
+            -H "Content-Type: application/json" \
+            -H "Origin: https://smoke.test.example" \
+            -d "{\"pageToken\":\"$PAGE_TOKEN\"}")
+          
+          echo "Response:"
+          echo "$resp"
+          
+          # Extract status code
+          status=$(echo "$resp" | tr -d '\r' | sed -n 's/.*HTTP_STATUS:\([0-9]*\)$/\1/p')
+          body=$(echo "$resp" | sed '/HTTP_STATUS:/d')
+          
+          # Check status code
+          if [ "$status" != "200" ] && [ "$status" != "201" ]; then
+            echo "❌ Smoke test failed: HTTP $status"
+            exit 1
+          fi
+          
+          # Check for JWT in response
+          if ! echo "$body" | grep -q '"jwt"'; then
+            echo "❌ Smoke test failed: no jwt in response body"
+            exit 1
+          fi
+          
+          echo "✅ Smoke test passed!"
+
+      - name: Summary
+        run: |
+          echo "✅ Widget built and published successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Files uploaded:**" >> $GITHUB_STEP_SUMMARY
+          echo "- workflo-widget-app.iife.js (latest)" >> $GITHUB_STEP_SUMMARY
+          echo "- workflo-widget-app.v${GITHUB_SHA::8}.iife.js (versioned)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**CDN URL:**" >> $GITHUB_STEP_SUMMARY
+          echo "https://${{ secrets.WIDGET_S3_BUCKET }}/workflo-widget-app.iife.js" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Smoke Test:** ✅ Passed" >> $GITHUB_STEP_SUMMARY

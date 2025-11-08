@@ -1,8 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* small app-level style */
 body { 
-  @apply bg-gray-50 text-gray-900; 
+  background-color: #f9fafb;
+  color: #111827;
 }

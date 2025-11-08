@@ -64,7 +64,7 @@ export class AdminService {
         type: 'member.invited',
         actorId: invitedBy,
         organizationId: orgId,
-        metadata: {
+        payload: {
           email,
           roleKey,
           inviteId: invite.id,
@@ -149,7 +149,7 @@ export class AdminService {
         type: 'member.joined',
         actorId: userId,
         organizationId: invite.organizationId,
-        metadata: {
+        payload: {
           roleKey: invite.roleKey,
           inviteId: invite.id,
           via: 'invite-accept',
@@ -236,7 +236,7 @@ export class AdminService {
         type: 'role.changed',
         actorId: changedBy,
         organizationId: orgId,
-        metadata: {
+        payload: {
           targetUserId,
           targetEmail: member.user.email,
           oldRole,
@@ -308,7 +308,7 @@ export class AdminService {
         type: 'member.removed',
         actorId: removedBy,
         organizationId: orgId,
-        metadata: {
+        payload: {
           targetUserId,
           targetEmail: member.user.email,
           roleKey: member.roleKey,
@@ -384,7 +384,7 @@ export class AdminService {
         type: 'invite.revoked',
         actorId: revokedBy,
         organizationId: invite.organizationId,
-        metadata: {
+        payload: {
           inviteId,
           email: invite.email,
         },

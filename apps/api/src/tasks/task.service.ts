@@ -102,4 +102,134 @@ export class TaskService {
       data: { isDone },
     });
   }
+
+  // Move single task into toColumn at index toIndex (0 = top)
+  async moveTask(
+    projectId: string,
+    taskId: string,
+    toColumn: string,
+    toIndex: number,
+    userId?: string,
+  ) {
+    // Verify task exists and belongs to project
+    const task = await this.prisma.projectTask.findUnique({
+      where: { id: taskId },
+      include: { project: { include: { workspace: true } } },
+    });
+    if (!task || task.projectId !== projectId) {
+      throw new NotFoundException('Task not found');
+    }
+
+    // Recompute positions for affected columns inside transaction
+    return await this.prisma.$transaction(async (tx) => {
+      // 1) Fetch tasks in target column ordered by position
+      const targetTasks = await tx.projectTask.findMany({
+        where: { projectId, columnKey: toColumn },
+        orderBy: { position: 'asc' },
+      });
+
+      // Insert our taskId at toIndex in the list
+      // If the task was previously in the same column, remove first
+      const filtered = targetTasks.filter((t) => t.id !== taskId);
+      const newList = [
+        ...filtered.slice(0, toIndex),
+        task,
+        ...filtered.slice(toIndex),
+      ];
+
+      // Reassign positions (0..n-1)
+      for (let i = 0; i < newList.length; i++) {
+        const t = newList[i];
+        await tx.projectTask.update({
+          where: { id: t.id },
+          data: { columnKey: toColumn, position: i },
+        });
+      }
+
+      // If moving from a different column, compress positions in source column
+      if (task.columnKey !== toColumn) {
+        const sourceTasks = await tx.projectTask.findMany({
+          where: { projectId, columnKey: task.columnKey },
+          orderBy: { position: 'asc' },
+        });
+        for (let i = 0; i < sourceTasks.length; i++) {
+          const s = sourceTasks[i];
+          await tx.projectTask.update({
+            where: { id: s.id },
+            data: { position: i },
+          });
+        }
+      }
+
+      // Fetch updated task to return
+      const updatedTask = await tx.projectTask.findUnique({
+        where: { id: taskId },
+        include: { project: { include: { workspace: true } } },
+      });
+
+      // Log activity
+      await this.activity.createActivity({
+        actorId: userId,
+        organizationId: updatedTask!.project.workspace.organizationId,
+        workspaceId: updatedTask!.project.workspaceId,
+        projectId: updatedTask!.projectId,
+        taskId: updatedTask!.id,
+        type: 'task.moved',
+        payload: {
+          title: updatedTask!.title,
+          fromColumn: task.columnKey,
+          toColumn,
+          position: toIndex,
+        },
+      });
+
+      // Emit realtime event so clients update
+      this.realtime.emitTaskUpdated(updatedTask!);
+
+      return { ok: true, task: updatedTask };
+    });
+  }
+
+  // Reorder: full column map -> set positions exactly as provided
+  async reorder(
+    projectId: string,
+    columns: Record<string, string[]>,
+    userId?: string,
+  ) {
+    return await this.prisma.$transaction(async (tx) => {
+      for (const [columnKey, ids] of Object.entries(columns)) {
+        for (let i = 0; i < ids.length; i++) {
+          await tx.projectTask.update({
+            where: { id: ids[i] },
+            data: { columnKey, position: i },
+          });
+        }
+      }
+
+      // Fetch all updated tasks
+      const tasks = await tx.projectTask.findMany({
+        where: { projectId },
+        orderBy: { columnKey: 'asc' },
+      });
+
+      // Emit realtime event
+      const project = await tx.project.findUnique({
+        where: { id: projectId },
+        include: { workspace: true },
+      });
+
+      if (project) {
+        await this.activity.createActivity({
+          actorId: userId,
+          organizationId: project.workspace.organizationId,
+          workspaceId: project.workspaceId,
+          projectId,
+          type: 'tasks.reordered',
+          payload: { columns },
+        });
+      }
+
+      return { ok: true, tasks };
+    });
+  }
 }

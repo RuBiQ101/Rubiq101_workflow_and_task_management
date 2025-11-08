@@ -13,7 +13,7 @@ export class BillingService {
       this.logger.warn('STRIPE_SECRET_KEY not configured');
     }
     this.stripe = new Stripe(stripeKey || 'sk_test_placeholder', {
-      apiVersion: '2024-11-20.acacia',
+      // apiVersion will use the default from the package
     });
   }
 
@@ -60,15 +60,19 @@ export class BillingService {
       let customerId = subscription?.stripeCustomerId;
 
       // Create customer if needed
-      if (!customerId) {
-        const owner = subscription.organization.members.find(m => m.roleKey === 'owner');
+      if (!customerId && subscription) {
+        const owner = subscription.organization.members.find((m) => m.roleKey === 'owner');
         const email = owner?.user.email || 'no-email@example.com';
         const customer = await this.createCustomerForOrg(orgId, email);
         customerId = customer.id;
       }
 
+      if (!customerId) {
+        throw new BadRequestException('No customer ID available');
+      }
+
       // Create Stripe subscription
-      const stripeSubscription = await this.stripe.subscriptions.create({
+      const stripeSubscription: any = await this.stripe.subscriptions.create({
         customer: customerId,
         items: [{ price: priceId }],
         expand: ['latest_invoice.payment_intent'],
@@ -81,7 +85,7 @@ export class BillingService {
           stripeSubscriptionId: stripeSubscription.id,
           planKey: priceId,
           status: stripeSubscription.status,
-          currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+          currentPeriodEnd: new Date((stripeSubscription.current_period_end || 0) * 1000),
           cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
         },
       });
@@ -193,18 +197,18 @@ export class BillingService {
     }
   }
 
-  private async handleSubscriptionUpdate(subscription: Stripe.Subscription) {
+  private async handleSubscriptionUpdate(subscription: any) {
     await this.prisma.subscription.updateMany({
       where: { stripeSubscriptionId: subscription.id },
       data: {
         status: subscription.status,
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        currentPeriodEnd: new Date((subscription.current_period_end || 0) * 1000),
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
       },
     });
   }
 
-  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  private async handleSubscriptionDeleted(subscription: any) {
     await this.prisma.subscription.updateMany({
       where: { stripeSubscriptionId: subscription.id },
       data: {

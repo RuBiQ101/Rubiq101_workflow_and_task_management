@@ -64,8 +64,8 @@ export class AdminController {
       await this.mailerService.sendInviteEmail(
         dto.email,
         inviteUrl,
-        inviter?.name,
-        org?.name,
+        inviter?.name || 'A team member',
+        org?.name || 'the organization',
       );
     } catch (err: any) {
       // Log and continue - admin can resend later
@@ -79,7 +79,7 @@ export class AdminController {
       return { invite, debug: { token: invite.token, inviteUrl } };
     }
 
-    return { ok: true, invite: { id: invite.id, email: invite.email } };
+    return { ok: true, invite: { inviteId: invite.inviteId, email: invite.email } };
   }
 
   @Get('invites')
