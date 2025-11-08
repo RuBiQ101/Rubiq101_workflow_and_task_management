@@ -3,6 +3,8 @@ import { Draggable } from 'react-beautiful-dnd';
 import { TaskCard } from './TaskCard';
 
 export default function Column({ title, tasks = [] }) {
+  console.log(`Column "${title}" rendering with ${tasks.length} tasks:`, tasks);
+  
   return (
     <div className="bg-gray-50 rounded-lg p-3 h-full flex flex-col">
       {/* Column Header */}
@@ -21,22 +23,30 @@ export default function Column({ title, tasks = [] }) {
           </div>
         )}
 
-        {tasks.map((task, index) => (
-          <Draggable key={task.id} draggableId={task.id} index={index}>
-            {(provided, snapshot) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.draggableProps}
-                {...provided.dragHandleProps}
-                className={`transition-transform ${
-                  snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl' : ''
-                }`}
-              >
-                <TaskCard task={task} isDragging={snapshot.isDragging} />
-              </div>
-            )}
-          </Draggable>
-        ))}
+        {tasks.map((task, index) => {
+          // Validate task has id field
+          if (!task.id) {
+            console.error('Task missing id field:', task);
+            return null;
+          }
+          
+          return (
+            <Draggable key={task.id} draggableId={task.id} index={index}>
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.draggableProps}
+                  {...provided.dragHandleProps}
+                  className={`transition-transform ${
+                    snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl' : ''
+                  }`}
+                >
+                  <TaskCard task={task} isDragging={snapshot.isDragging} />
+                </div>
+              )}
+            </Draggable>
+          );
+        })}
       </div>
     </div>
   );
