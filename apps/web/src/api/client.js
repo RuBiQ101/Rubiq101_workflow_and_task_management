@@ -4,59 +4,73 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-// Create axios instance
+// Create axios instance with better logging
 const axiosInstance = axios.create({
   baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000,
 });
 
-// Add auth token interceptor
+// Enhanced request interceptor with logging
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
+    console.group(`🔄 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log('Full URL:', config.baseURL + config.url);
+    console.log('Headers:', config.headers);
+    console.log('Data:', config.data);
+    console.log('Token exists:', !!token);
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('Request with auth token to:', config.url);
+      console.log('✅ Authorization header added');
     } else {
-      console.warn('No token found in localStorage for request:', config.url);
+      console.warn('⚠️ No token found in localStorage');
       // Don't add Authorization header if no token
       delete config.headers.Authorization;
     }
+    
+    console.groupEnd();
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
+    console.error('❌ Request Interceptor Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for error handling
+// Enhanced response interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.config.url, response.status);
+    console.group(`✅ API Response: ${response.status} ${response.config.url}`);
+    console.log('Status:', response.status);
+    console.log('Data:', response.data);
+    console.log('Headers:', response.headers);
+    console.groupEnd();
     return response;
   },
   (error) => {
-    console.error('API Error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
+    console.group(`❌ API Error: ${error.config?.url}`);
+    console.log('Error Message:', error.message);
+    console.log('Status Code:', error.response?.status);
+    console.log('Response Data:', error.response?.data);
+    console.log('Request Config:', error.config);
+    console.groupEnd();
     
     if (error.response?.status === 401) {
-      console.log('Unauthorized - clearing token and redirecting to login');
+      console.log('🛡️ Unauthorized - redirecting to login');
       localStorage.removeItem('token');
       // Use window.location instead of navigate for reliability
-      if (!window.location.pathname.includes('/login')) {
+      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/debug')) {
         window.location.href = '/login';
       }
     }
     
     // Handle 500 errors specifically
     if (error.response?.status === 500) {
+      console.error('🔥 Server Error - check backend logs');
       console.error('Server error details:', error.response.data);
     }
     
