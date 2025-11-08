@@ -22,8 +22,16 @@ export default function KanbanBoard({
   async function loadBoard() {
     setLoading(true);
     setError('');
+    
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       console.log('Loading board data for project:', projectId);
+      console.log('API request:', `GET /workspaces/${workspaceId}/projects/${projectId}/board`);
+      
       // Use consistent project-based endpoint
       const { data } = await api.get(`/workspaces/${workspaceId}/projects/${projectId}/board`);
       console.log('Board API response:', data);
@@ -38,8 +46,30 @@ export default function KanbanBoard({
       console.log('Processed columns:', safeColumns);
       setColumns(safeColumns);
     } catch (err) {
-      console.error('Failed to load board', err);
-      setError('Failed to load kanban board');
+      console.error('Failed to load board:', err);
+      console.error('Error details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      });
+      
+      if (err.response?.status === 401) {
+        setError('Session expired. Please login again.');
+        // Redirect to login after delay
+        setTimeout(() => {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+        }, 2000);
+      } else if (err.response?.status === 500) {
+        setError('Server error. Please try again later.');
+      } else if (err.message === 'No authentication token found') {
+        setError('Please login to continue.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else {
+        setError('Failed to load kanban board');
+      }
       
       // Initialize empty columns on error to prevent undefined errors
       setColumns({
@@ -98,35 +128,68 @@ export default function KanbanBoard({
     // Send move to server
     try {
       console.log('Sending move request to API...');
+      console.log('Move request data:', {
+        taskId: draggableId,
+        toColumn: toCol,
+        toIndex: toIndex
+      });
+      
       await api.post(`/projects/${projectId}/tasks/move`, {
         taskId: draggableId,
         toColumn: toCol,
         toIndex: toIndex,
       });
+      
       console.log('Task moved successfully on server');
       // Server will emit realtime to other clients
     } catch (err) {
       console.error('Move failed, reverting:', err);
+      console.error('Error details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      });
+      
+      if (err.response?.status === 401) {
+        setError('Session expired. Please login again.');
+        setTimeout(() => {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+        }, 2000);
+      } else if (err.response?.status === 500) {
+        setError('Server error moving task. Please try again.');
+      } else {
+        setError('Failed to move task. Please try again.');
+      }
+      
       // Revert (reload full board for simplicity)
       await loadBoard();
-      setError('Failed to move task. Please try again.');
-      setTimeout(() => setError(''), 3000);
+      setTimeout(() => setError(''), 5000);
     }
   }
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="text-gray-500">Loading board...</div>
+      <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <div className="text-gray-600 font-medium">Loading board...</div>
+        <div className="text-gray-500 text-sm mt-2">Please wait while we fetch your tasks</div>
       </div>
     );
   }
 
-  if (error && loading === false) {
+  if (error && loading === false && !columns.todo) {
     return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
+      <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg max-w-md text-center">
+          <div className="font-semibold mb-2">Error Loading Board</div>
+          <div className="mb-4">{error}</div>
+          <button
+            onClick={loadBoard}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

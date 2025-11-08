@@ -18,21 +18,48 @@ axiosInstance.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('Request with auth token to:', config.url);
+    } else {
+      console.warn('No token found in localStorage for request:', config.url);
+      // Don't add Authorization header if no token
+      delete config.headers.Authorization;
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('Request interceptor error:', error);
+    return Promise.reject(error);
+  }
 );
 
 // Response interceptor for error handling
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('API Response:', response.config.url, response.status);
+    return response;
+  },
   (error) => {
+    console.error('API Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    
     if (error.response?.status === 401) {
-      // Unauthorized - redirect to login
+      console.log('Unauthorized - clearing token and redirecting to login');
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Use window.location instead of navigate for reliability
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
+    
+    // Handle 500 errors specifically
+    if (error.response?.status === 500) {
+      console.error('Server error details:', error.response.data);
+    }
+    
     return Promise.reject(error);
   }
 );

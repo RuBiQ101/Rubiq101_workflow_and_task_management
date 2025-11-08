@@ -26,14 +26,33 @@ export default function LoginPage() {
 
     try {
       const endpoint = isLogin ? '/auth/login' : '/auth/register';
+      console.log('Making request to:', endpoint, 'with data:', { 
+        email: formData.email, 
+        hasPassword: !!formData.password 
+      });
+      
       const { data } = await api.post(endpoint, formData);
+      console.log('Login response:', data);
       
       // Store token
-      localStorage.setItem('token', data.access_token);
+      if (!data.accessToken && !data.access_token) {
+        throw new Error('No access token in response');
+      }
+      
+      const token = data.accessToken || data.access_token;
+      localStorage.setItem('token', token);
+      console.log('Token stored successfully:', token.substring(0, 20) + '...');
+      
+      // Verify token is present before proceeding
+      const storedToken = localStorage.getItem('token');
+      if (!storedToken) {
+        throw new Error('Token not stored properly');
+      }
       
       // Check if user needs onboarding
       try {
         const { data: userData } = await api.get('/auth/me');
+        console.log('User data fetched:', userData);
         
         // For new registrations or first-time users, redirect to onboarding
         if (!isLogin || (isFirstRun() && !userData.onboardingComplete)) {
@@ -41,12 +60,16 @@ export default function LoginPage() {
         } else {
           navigate('/dashboard');
         }
-      } catch {
+      } catch (meError) {
+        console.warn('Could not fetch user data, redirecting to dashboard:', meError);
         // If we can't fetch user data, just go to dashboard
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Authentication failed');
+      console.error('Full error object:', err);
+      console.error('Error response:', err.response);
+      console.error('Error response data:', err.response?.data);
+      setError(err.response?.data?.message || err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }

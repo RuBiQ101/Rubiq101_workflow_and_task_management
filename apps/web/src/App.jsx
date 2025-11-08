@@ -12,13 +12,34 @@ import AppLayout from './components/layout/AppLayout';
 // Simple demo app: pass workspace id via env or change here
 const DEMO_WORKSPACE = import.meta.env.VITE_WORKSPACE_ID || 'replace-workspace-id';
 
-// Simple auth check
+// Enhanced auth check with validation
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" replace />;
+  
+  // Debug logging
+  console.log('PrivateRoute check:', {
+    hasToken: !!token,
+    tokenPreview: token ? token.substring(0, 20) + '...' : 'none',
+    currentPath: window.location.pathname
+  });
+
+  if (!token) {
+    console.log('No token found, redirecting to login');
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 };
 
 export default function App() {
+  // Debug logging for app initialization
+  console.log('App initialized with:', {
+    hasToken: !!localStorage.getItem('token'),
+    apiBase: import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:3000',
+    demoWorkspace: DEMO_WORKSPACE,
+    currentPath: window.location.pathname
+  });
+
   return (
     <Router>
       <Routes>
