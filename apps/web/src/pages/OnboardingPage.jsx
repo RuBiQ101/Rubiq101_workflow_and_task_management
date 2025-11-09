@@ -16,32 +16,29 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch current user and their workspaces
-    Promise.all([
-      api.get('/auth/me'),
-      api.get('/workspaces')
-    ])
-      .then(([{ data: userData }, { data: workspacesData }]) => {
-        setUser(userData);
+    // Fetch current user with their workspaces
+    api.get('/auth/me')
+      .then(({ data }) => {
+        setUser(data);
         
-        // Get the first workspace or use default
-        const firstWorkspace = workspacesData?.[0] || workspacesData?.data?.[0];
-        if (firstWorkspace?.id) {
+        // Extract workspace ID from user data
+        if (data.workspaces && data.workspaces.length > 0) {
+          const firstWorkspace = data.workspaces[0];
           setWorkspaceId(firstWorkspace.id);
           console.log('Using workspace:', firstWorkspace.id, firstWorkspace.name);
         } else {
-          console.error('No workspace found for user');
+          console.error('No workspaces found for user');
         }
         
         setLoading(false);
         
         // If not first run OR user has completed onboarding, redirect to dashboard
-        if (!isFirstRun() || userData?.onboardingComplete) {
+        if (!isFirstRun() || data?.onboardingComplete) {
           navigate('/dashboard', { replace: true });
         }
       })
       .catch((error) => {
-        console.error('Failed to fetch user/workspaces:', error);
+        console.error('Failed to fetch user:', error);
         setLoading(false);
         // If auth fails, redirect to login
         navigate('/login', { replace: true });

@@ -54,6 +54,51 @@ export class AuthService {
   }
 
   /**
+   * Get user profile with their workspaces
+   */
+  async getUserWithWorkspaces(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        memberships: {
+          select: {
+            workspace: {
+              select: {
+                id: true,
+                name: true,
+                organizationId: true,
+              },
+            },
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Flatten the workspace data
+    const workspaces = user.memberships.map((m) => ({
+      id: m.workspace.id,
+      name: m.workspace.name,
+      organizationId: m.workspace.organizationId,
+      role: m.role,
+    }));
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      workspaces,
+    };
+  }
+
+  /**
    * Accept an invite token and add user to organization
    */
   private async acceptInvite(token: string, userId: string) {

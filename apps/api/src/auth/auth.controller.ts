@@ -44,7 +44,9 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  getProfile(@Request() req: any) {
-    return req.user;
+  async getProfile(@Request() req: any) {
+    // Fetch user with their workspaces
+    const user = await this.auth.getUserWithWorkspaces(req.user.id);
+    return user;
   }
 }
