@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 
-export default function CreateProjectModal({ open, onClose, onCreated }) {
+export default function CreateProjectModal({ open, onClose, onCreated, workspaceId }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
@@ -17,15 +17,24 @@ export default function CreateProjectModal({ open, onClose, onCreated }) {
       return;
     }
     
+    if (!workspaceId) {
+      setError('No workspace ID provided. Please try again.');
+      console.error('workspaceId is required but not provided');
+      return;
+    }
+    
     setCreating(true);
     setError('');
     
     try {
-      // API call to create project
-      const { data } = await api.post('/projects', { 
+      console.log('Creating project in workspace:', workspaceId);
+      // API call to create project with correct endpoint
+      const { data } = await api.post(`/workspaces/${workspaceId}/projects`, { 
         name: name.trim(), 
         description: description.trim() 
       });
+      
+      console.log('Project created successfully:', data);
       
       // Reset form
       setName('');
@@ -38,6 +47,7 @@ export default function CreateProjectModal({ open, onClose, onCreated }) {
       onClose();
     } catch (err) {
       console.error('Failed to create project:', err);
+      console.error('Error response:', err.response?.data);
       setError(err.response?.data?.message || 'Failed to create project. Please try again.');
     } finally {
       setCreating(false);
